@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>矿点分布地图系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/ol@v7.1.0/dist/ol.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.1.0/ol.css">
+    <!-- 引入Chart.js用于绘制统计图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* 顶部导航栏样式 */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            flex-shrink: 0;
+        }
+        
+        /* 左上角汉堡菜单样式 */
+        .hamburger-menu {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .hamburger-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .hamburger-btn:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+            border-radius: 8px;
+            padding: 10px 0;
+            min-width: 280px;
+            z-index: 1001;
+            margin-top: 5px;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .menu-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        
+        .menu-item:hover {
+            background-color: #f5f8ff;
+        }
+        
+        .menu-item .icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        
+        .menu-item .text {
+            font-weight: 500;
+        }
+        
+        .menu-item .subtext {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        /* 子菜单样式 */
+        .submenu {
+            padding-left: 20px;
+            border-left: 2px solid #e8e8e8;
+            margin-left: 10px;
+        }
+        
+        .submenu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 2px 0;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .submenu-item:hover {
+            background-color: #e6f7ff;
+            color: #1890ff;
+        }
+        
+        /* 右上角搜索框样式 */
+        .search-container {
+            display: flex;
+            align-items: center;
+        }
+        
+        .search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background-color: #f8f9fa;
+            border-radius: 25px;
+            padding: 8px 15px;
+            border: 1px solid #e0e0e0;
+            transition: all 0.3s;
+            width: 300px;
+        }
+        
+        .search-box:focus-within {
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+            background-color: white;
+        }
+        
+        .search-icon {
+            margin-right: 10px;
+            color: #999;
+        }
+        
+        .search-input {
+            border: none;
+            background: none;
+            outline: none;
+            width: 100%;
+            font-size: 14px;
+        }
+        
+        .search-input::placeholder {
+            color: #aaa;
+        }
+        
+        /* 页面标题样式 */
+        .page-header {
+            text-align: center;
+            padding: 20px 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            flex-shrink: 0;
+        }
+        
+        h1 {
+            color: #e53935;
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-description {
+            color: #1976d2;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        
+        /* 地图容器样式 - 修复高度问题 */
+        #map {
+            width: 100%;
+            flex: 1;
+            min-height: 400px;
+            position: relative;
+        }
+        
+        /* 确保OpenLayers地图容器填满 */
+        .ol-viewport {
+            position: absolute !important;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        /* 图层控制面板 */
+        .layer-control {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            z-index: 1000;
+            max-width: 280px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .layer-control h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        
+        .layer-group {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .layer-group-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .layer-item {
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .layer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        .layer-checkbox {
+            display: flex;
+            align-items: center;
+        }
+        
+        .layer-checkbox label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .layer-checkbox input {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        
+        .layer-opacity {
+            margin-top: 5px;
+            padding-left: 20px;
+        }
+        
+        .layer-opacity label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .layer-opacity input {
+            width: 100%;
+        }
+        
+        /* 统计图表模态框样式 - 修改为自适应 */
+        .chart-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1002;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            width: 85%;
+            max-width: 1000px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        
+        .chart-modal.show {
+            display: block;
+            animation: modalFadeIn 0.4s;
+        }
+        
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        
+        .chart-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .close-chart {
+            cursor: pointer;
+            font-size: 28px;
+            color: #999;
+            line-height: 1;
+            padding: 0 5px;
+            transition: color 0.3s;
+            line-height: 1;
+        }
+        
+        .close-chart:hover {
+            color: #ff4d4f;
+        }
+        
+        /* 图表内容区域 - 修改为flex布局 */
+        .chart-content {
+            min-height: auto;
+            position: relative;
+            overflow: visible !important;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        /* 图表容器样式 - 使用相对单位 */
+        .chart-container {
+            width: 100%;
+            height: 55vh;
+            min-height: 400px;
+            max-height: 600px;
+            position: relative;
+        }
+        
+        /* 图片预览样式 */
+        .chart-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin: 15px 0;
+            display: block;
+        }
+        
+        .image-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .image-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        /* 统计信息容器样式 - 优化 */
+        .stat-info-container {
+            color: #666;
+            font-size: 14px;
+            margin-top: 25px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #1890ff;
+            line-height: 1.6;
+        }
+        
+        /* 搜索结果模态框样式 */
+        .results-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            right: 30px;
+            transform: translateY(-50%);
+            z-index: 1002;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 25px;
+            width: 400px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .results-modal.show {
+            display: block;
+            animation: resultsFadeIn 0.4s;
+        }
+        
+        @keyframes resultsFadeIn {
+            from { opacity: 0; transform: translateY(-40%); }
+            to { opacity: 1; transform: translateY(-50%); }
+        }
+        
+        .results-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .results-count {
+            font-size: 14px;
+            font-weight: normal;
+            color: #666;
+            background-color: #f0f0f0;
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+        
+        .no-results {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+        
+        .results-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .result-item {
+            padding: 15px;
+            border-bottom: 1px solid #f5f5f5;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .result-item:hover {
+            background-color: #f6ffed;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .mine-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .mine-details {
+            font-size: 13px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .mine-type {
+            background-color: #e6f7ff;
+            color: '#1890ff';
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .mine-size {
+            background-color: #f9f0ff;
+            color: '#722ed1';
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .mine-output {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        /* 地图标记样式 */
+        .mine-cluster {
+            background-color: rgba(250, 84, 28, 0.9);
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            border: 3px solid white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+        
+        /* 模态框遮罩层 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+        
+        .modal-overlay.show {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .top-nav {
+                padding: 15px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .search-container {
+                width: 100%;
+                margin-top: 15px;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
+            
+            h1 {
+                font-size: 36px;
+            }
+            
+            .chart-modal, .results-modal {
+                width: 95%;
+                max-width: 95%;
+            }
+            
+            .chart-modal {
+                padding: 15px;
+                max-height: 90vh;
+            }
+            
+            .chart-container {
+                height: 50vh;
+                min-height: 350px;
+            }
+            
+            .results-modal {
+                right: 2.5%;
+            }
+            
+            #map {
+                min-height: 300px;
+            }
+            
+            .stat-info-container {
+                font-size: 13px;
+                padding: 12px;
+                margin-top: 15px;
+            }
+            
+            .layer-control {
+                top: 10px;
+                right: 10px;
+                max-width: 250px;
+                padding: 10px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 28px;
+            }
+            
+            .page-description {
+                font-size: 16px;
+            }
+            
+            .chart-title {
+                font-size: 18px;
+            }
+            
+            .chart-container {
+                height: 45vh;
+                min-height: 300px;
+            }
+            
+            #map {
+                min-height: 250px;
+            }
+            
+            .layer-control {
+                max-width: 220px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 模态框遮罩层 -->
+    <div class="modal-overlay" id="modalOverlay"></div>
+    
+    <!-- 顶部导航栏 -->
+    <div class="top-nav">
+        <!-- 左上角汉堡菜单 -->
+        <div class="hamburger-menu">
+            <button class="hamburger-btn" id="hamburgerBtn">☰</button>
+            <div class="dropdown-menu" id="dropdownMenu">
+                <!-- 受影响河流 -->
+                <div class="menu-item" id="riverMenu">
+                    <div class="icon"></div>
+                    <div>
+                        <div class="text">受影响河流</div>
+                        <div class="subtext">展示受矿区影响的河流统计</div>
+                    </div>
+                </div>
+                <div class="submenu" id="riverSubmenu" style="display: none;">
+                    <div class="submenu-item" id="riverByProvince">按省统计的柱状图</div>
+                    <div class="submenu-item" id="riverByBasin">按流域统计的柱状图</div>
+                </div>
+                
+                <!-- 受影响保护区 -->
+                <div class="menu-item" id="protectedArea">
+                    <div class="icon"></div>
+                    <div>
+                        <div class="text">受影响保护区</div>
+                        <div class="subtext">展示受矿区影响的保护区统计</div>
+                    </div>
+                </div>
+                
+                <!-- 矿点统计图 -->
+                <div class="menu-item" id="mineStatsMenu">
+                    <div class="icon"></div>
+                    <div>
+                        <div class="text">矿点统计图</div>
+                        <div class="subtext">矿点分布统计信息</div>
+                    </div>
+                </div>
+                <div class="submenu" id="mineStatsSubmenu" style="display: none;">
+                    <div class="submenu-item" id="mineByProvince">按省统计</div>
+                    <div class="submenu-item" id="mineByBasin">按流域统计</div>
+                </div>
+                
+                <!-- WMS图层控制 -->
+                <div class="menu-item" id="layerControlMenu">
+                    <div class="icon"></div>
+                    <div>
+                        <div class="text">图层控制</div>
+                        <div class="subtext">显示/隐藏地图图层</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右上角搜索框 -->
+        <div class="search-container">
+            <div class="search-box">
+                <div class="search-icon">🔍</div>
+                <input type="text" id="regionSearch" class="search-input" 
+                       placeholder="输入省份名称，如：北京">
+            </div>
+        </div>
+    </div>
+    
+    <!-- 页面标题区域 -->
+    <div class="page-header">
+        <h1>矿点分布地图系统</h1>
+        <p class="page-description">全国矿点分布可视化与统计分析平台</p>
+    </div>
+    
+    <!-- 地图容器 -->
+    <div id="map"></div>
+    
+    <!-- 图层控制面板 -->
+    <div class="layer-control" id="layerControl" style="display: none;">
+        <h3>图层控制</h3>
+        
+        <div class="layer-group">
+            <div class="layer-group-title">底图</div>
+            <div class="layer-item">
+                <div class="layer-header">
+                    <div class="layer-checkbox">
+                        <label>
+                            <input type="checkbox" id="toggleBaseMap" checked> 基础底图
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="layer-group">
+            <div class="layer-group-title">WMS图层</div>
+            <div class="layer-item">
+                <div class="layer-header">
+                    <div class="layer-checkbox">
+                        <label>
+                            <input type="checkbox" id="toggleFloodLayer" checked> 洪泛区
+                        </label>
+                    </div>
+                </div>
+                <div class="layer-opacity">
+                    <label for="floodOpacity">透明度:</label>
+                    <input type="range" id="floodOpacity" min="0" max="100" value="70">
+                </div>
+            </div>
+            
+            <div class="layer-item">
+                <div class="layer-header">
+                    <div class="layer-checkbox">
+                        <label>
+                            <input type="checkbox" id="togglePbFlowLayer" checked> Pb_flow
+                        </label>
+                    </div>
+                </div>
+                <div class="layer-opacity">
+                    <label for="pbFlowOpacity">透明度:</label>
+                    <input type="range" id="pbFlowOpacity" min="0" max="100" value="70">
+                </div>
+            </div>
+            
+            <div class="layer-item">
+                <div class="layer-header">
+                    <div class="layer-checkbox">
+                        <label>
+                            <input type="checkbox" id="toggleRiverLayer" checked> 河流
+                        </label>
+                    </div>
+                </div>
+                <div class="layer-opacity">
+                    <label for="riverOpacity">透明度:</label>
+                    <input type="range" id="riverOpacity" min="0" max="100" value="70">
+                </div>
+            </div>
+            
+            <div class="layer-item">
+                <div class="layer-header">
+                    <div class="layer-checkbox">
+                        <label>
+                            <input type="checkbox" id="toggleProtectedAreaLayer" checked> 保护区
+                        </label>
+                    </div>
+                </div>
+                <div class="layer-opacity">
+                    <label for="protectedAreaOpacity">透明度:</label>
+                    <input type="range" id="protectedAreaOpacity" min="0" max="100" value="70">
+                </div>
+            </div>
+        </div>
+        
+        <div class="layer-group">
+            <div class="layer-group-title">矢量图层</div>
+            <div class="layer-item">
+                <div class="layer-header">
+                    <div class="layer-checkbox">
+                        <label>
+                            <input type="checkbox" id="toggleMineLayer" checked> 矿点分布
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 统计图表模态框 -->
+    <div class="chart-modal" id="chartModal">
+        <div class="chart-header">
+            <div class="chart-title" id="chartTitle">统计图表</div>
+            <div class="close-chart" id="closeChart">×</div>
+        </div>
+        <div class="chart-content">
+            <div class="chart-container">
+                <canvas id="mineChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 搜索结果模态框 -->
+    <div class="results-modal" id="resultsModal">
+        <div class="results-header">
+            <span id="resultsTitle">搜索结果</span>
+            <span class="results-count" id="resultsCount">0个</span>
+        </div>
+        <div class="results-list" id="resultsList"></div>
+    </div>
+
+    <script>
+        // 从URL中提取WMS图层的bbox范围
+        // 我们使用river图层的范围作为主要范围
+        const wmsExtent = [58.01458333333335, 1.4354166666666544, 145.2562499999986, 55.74791666666581];
+        
+        // 计算中心点和初始缩放级别
+        const wmsCenter = [
+            (wmsExtent[0] + wmsExtent[2]) / 2,
+            (wmsExtent[1] + wmsExtent[3]) / 2
+        ];
+        
+        // 初始化地图 - 使用EPSG:4326坐标系以匹配WMS图层
+        var map = new ol.Map({
+            target: 'map',
+            layers: [
+                // 使用适合中国的地图服务，支持EPSG:4326
+                new ol.layer.Tile({
+                    source: new ol.source.XYZ({
+                        // 使用OpenStreetMap中国镜像，支持EPSG:4326
+                        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        attributions: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }),
+                    visible: true,
+                    // 设置底图范围与WMS图层一致
+                    extent: wmsExtent
+                })
+            ],
+            view: new ol.View({
+                // 使用EPSG:4326坐标系
+                projection: 'EPSG:4326',
+                // 设置初始中心为WMS图层中心
+                center: wmsCenter,
+                zoom: 4,
+                // 限制地图范围为WMS图层范围
+                extent: wmsExtent,
+                // 限制缩放和平移范围
+                constrainOnlyCenter: true,
+                constrainResolution: true,
+                minZoom: 3,
+                maxZoom: 12,
+                // 确保地图始终显示在WMS图层范围内
+                constrainExtent: wmsExtent
+            })
+        });
+
+        // 创建四个WMS图层 - 从提供的URL中提取参数
+        // 注意：我们使用同一个GeoServer服务器，但不同的图层名称
+        
+        // 1. 洪泛区图层
+        var floodLayer = new ol.layer.Image({
+            source: new ol.source.ImageWMS({
+                url: 'http://192.168.221.22:8080/geoserver/nation/wms',
+                params: {
+                    'LAYERS': 'nation:China_Flood',
+                    'TILED': true,
+                    'VERSION': '1.1.0',
+                    'FORMAT': 'image/png',
+                    'TRANSPARENT': true
+                },
+                ratio: 1,
+                serverType: 'geoserver',
+                // 关键：指定坐标系为EPSG:4326
+                projection: 'EPSG:4326'
+            }),
+            opacity: 0.7,
+            visible: true,
+            // 设置图层范围 - 使用URL中的bbox
+            extent: [73.71751721186332, 18.34975319917463, 135.09567000000015, 53.563624000000104]
+        });
+        
+        // 2. Pb_flow图层
+        var pbFlowLayer = new ol.layer.Image({
+            source: new ol.source.ImageWMS({
+                url: 'http://192.168.221.22:8080/geoserver/nation/wms',
+                params: {
+                    'LAYERS': 'nation:Pb_flow',
+                    'TILED': true,
+                    'VERSION': '1.1.0',
+                    'FORMAT': 'image/png',
+                    'TRANSPARENT': true
+                },
+                ratio: 1,
+                serverType: 'geoserver',
+                projection: 'EPSG:4326'
+            }),
+            opacity: 0.7,
+            visible: true,
+            extent: [74.98595182458097, 21.711597914083523, 131.9155235049398, 53.065817113285505]
+        });
+        
+        // 3. 河流图层
+        var riverLayer = new ol.layer.Image({
+            source: new ol.source.ImageWMS({
+                url: 'http://192.168.221.22:8080/geoserver/nation/wms',
+                params: {
+                    'LAYERS': 'nation:River_=4',
+                    'TILED': true,
+                    'VERSION': '1.1.0',
+                    'FORMAT': 'image/png',
+                    'TRANSPARENT': true
+                },
+                ratio: 1,
+                serverType: 'geoserver',
+                projection: 'EPSG:4326'
+            }),
+            opacity: 0.7,
+            visible: true,
+            extent: [58.01458333333335, 1.4354166666666544, 145.2562499999986, 55.74791666666581]
+        });
+        
+        // 4. 保护区图层
+        var protectedAreaLayer = new ol.layer.Image({
+            source: new ol.source.ImageWMS({
+                url: 'http://192.168.221.22:8080/geoserver/nation/wms',
+                params: {
+                    'LAYERS': 'nation:保护区',
+                    'TILED': true,
+                    'VERSION': '1.1.0',
+                    'FORMAT': 'image/png',
+                    'TRANSPARENT': true
+                },
+                ratio: 1,
+                serverType: 'geoserver',
+                projection: 'EPSG:4326'
+            }),
+            opacity: 0.7,
+            visible: true,
+            extent: [74.452698, 18.167413, 134.777008, 53.19989]
+        });
+        
+        // 将WMS图层添加到地图
+        map.addLayer(floodLayer);
+        map.addLayer(pbFlowLayer);
+        map.addLayer(riverLayer);
+        map.addLayer(protectedAreaLayer);
+
+        // 创建矿点矢量图层 - 使用EPSG:4326坐标系
+        var mineVectorSource = new ol.source.Vector();
+        var mineVectorLayer = new ol.layer.Vector({
+            source: mineVectorSource,
+            style: function(feature) {
+                var mineType = feature.get('type');
+                var color;
+                
+                // 根据矿点类型设置不同颜色
+                switch(mineType) {
+                    case '煤矿': color = '#000000'; break;
+                    case '铁矿': color = '#ff4d4f'; break;
+                    case '铜矿': color = '#faad14'; break;
+                    case '金矿': color = '#fadb14'; break;
+                    case '铝土矿': color = '#13c2c2'; break;
+                    case '稀土矿': color = '#722ed1'; break;
+                    default: color = '#eb2f96';
+                }
+                
+                return new ol.style.Style({
+                    image: new ol.style.Circle({
+                        radius: 8,
+                        fill: new ol.style.Fill({color: color}),
+                        stroke: new ol.style.Stroke({
+                            color: '#ffffff',
+                            width: 2
+                        })
+                    }),
+                    text: new ol.style.Text({
+                        text: feature.get('name').substring(0, 4),
+                        font: 'bold 12px Arial',
+                        fill: new ol.style.Fill({color: '#333'}),
+                        stroke: new ol.style.Stroke({
+                            color: '#ffffff',
+                            width: 3
+                        }),
+                        offsetY: -18
+                    })
+                });
+            },
+            visible: true
+        });
+        
+        map.addLayer(mineVectorLayer);
+
+        // 统一的省份列表（26个省份，与保护区一致）
+        const provinceList = ['安徽', '北京', '福建', '甘肃', '广东', '广西', '贵州', '河北', '河南', '黑龙江', '湖北', '湖南', '吉林', '江苏', '江西', '辽宁','内蒙古', '山东', '山西', '陕西', '四川', '天津', '西藏', '新疆', '云南','重庆'];
+
+        // 矿点数据-按省统计（扩展为26个省份）
+        const mineDataByProvince = {
+            labels: provinceList,
+            // 扩展数据，原14个省份数据保留，新增省份用模拟数据
+            data: [450, 180, 320, 150, 650, 220, 280, 510, 380, 390, 260, 720, 200, 580, 240, 470, 420, 490, 620, 530, 800, 100, 80, 550, 300, 180],
+            colors: [
+                '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', 
+                '#13c2c2', '#fadb14', '#ff4d4f', '#a0d911', '#2f54eb',
+                '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14',
+                '#ff4d4f', '#a0d911', '#2f54eb', '#1890ff', '#52c41a',
+                '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f'
+            ],
+            description: '全国各省矿点统计'
+        };
+
+        // 矿点数据-按流域统计
+        const mineDataByBasin = {
+            labels: ['长江', '黄河', '淮河', '松辽河', '珠江', 
+                    '西南', '东南', '内陆河', '海河'],
+            data: [28.68, 13.40, 3.90, 16.98, 4.54, 2.99, 0.32, 5.02, 24.06],
+            colors: [
+                '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', 
+                '#13c2c2', '#fadb14', '#ff4d4f', '#a0d911'
+            ],
+            description: '全国各流域矿点统计'
+        };
+
+        // 修正：水系数据 - 按省份（26个省份）
+        const riverDataByProvince = {
+            labels: provinceList,
+            // 模拟数据，表示各省份受影响河流的百分比
+            data: [10.02, 0.68, 1.85, 1.28, 7.01, 3.05, 5.72, 6.20, 14.08, 0.11, 1.27, 4.64, 1.37, 0.00, 3.06, 5.77, 1.64, 5.80, 19.28, 14.02, 0.54, 5.94, 0.10, 0.06, 2.13, 0.07],
+            colors: [
+                '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f',
+                '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14',
+                '#ff4d4f', '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2',
+                '#fadb14', '#ff4d4f'
+            ],
+            description: '各省份受影响河流统计'
+        };
+
+        // 水系数据 - 按流域（修正：使用流域数据）
+        const riverDataByBasin = {
+            labels: ['长江', '松辽河', '海河', '黄河', '内陆河', '珠江', '淮河', '西南', '东南'],
+            data: [27.66, 16.46, 14.86, 13.88, 8.93, 8.57, 5.05, 3.70, 0.89],
+            colors: [
+                '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f',
+                '#a0d911'
+            ]
+        };
+
+        // 保护区数据
+        const protectedAreaData = {
+            labels: provinceList,
+            data: [10.02, 0.68, 1.85, 1.28, 7.01, 3.05, 5.72, 6.20, 14.08, 0.11, 1.27, 4.64, 1.37, 0.00, 3.06, 5.77, 1.64, 5.80, 19.28, 14.02, 0.54, 5.94, 0.10, 0.06, 2.13, 0.07],
+            colors: [
+                '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f',
+                '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14',
+                '#ff4d4f', '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2',
+                '#fadb14', '#ff4d4f'
+            ]
+        };
+
+        // 模拟地区矿点数据 - 已使用EPSG:4326坐标系
+        const regionMines = {
+            '山西': [
+                {name: '大同煤矿', type: '煤矿', lon: 113.3, lat: 40.1, size: '大型', output: '年产量2000万吨'},
+                {name: '阳泉煤矿', type: '煤矿', lon: 113.6, lat: 37.9, size: '大型', output: '年产量1500万吨'},
+                {name: '太原铁矿', type: '铁矿', lon: 112.5, lat: 37.9, size: '中型', output: '年产量800万吨'},
+                {name: '吕梁铝土矿', type: '铝土矿', lon: 111.1, lat: 37.5, size: '中型', output: '年产量500万吨'},
+                {name: '晋城煤矿', type: '煤矿', lon: 112.9, lat: 35.5, size: '大型', output: '年产量1800万吨'}
+            ],
+            '北京': [
+                {name: '首钢矿区', type: '铁矿', lon: 116.1, lat: 40.2, size: '中型', output: '年产量600万吨'},
+                {name: '京西煤矿', type: '煤矿', lon: 115.9, lat: 39.9, size: '小型', output: '年产量200万吨'}
+            ],
+            '河北': [
+                {name: '唐山铁矿', type: '铁矿', lon: 118.2, lat: 39.6, size: '大型', output: '年产量1200万吨'},
+                {name: '邯郸煤矿', type: '煤矿', lon: 114.5, lat: 36.6, size: '中型', output: '年产量800万吨'},
+                {name: '承德铁矿', type: '铁矿', lon: 117.9, lat: 40.9, size: '中型', output: '年产量700万吨'},
+                {name: '张家口煤矿', type: '煤矿', lon: 114.9, lat: 40.8, size: '中型', output: '年产量600万吨'}
+            ],
+            '山东': [
+                {name: '兖州煤矿', type: '煤矿', lon: 116.8, lat: 35.6, size: '大型', output: '年产量1800万吨'},
+                {name: '招远金矿', type: '金矿', lon: 120.4, lat: 37.4, size: '大型', output: '年产量50吨'},
+                {name: '淄博铝土矿', type: '铝土矿', lon: 118.0, lat: 36.8, size: '中型', output: '年产量400万吨'}
+            ],
+            '陕西': [
+                {name: '榆林煤矿', type: '煤矿', lon: 109.7, lat: 38.3, size: '大型', output: '年产量2500万吨'},
+                {name: '潼关金矿', type: '金矿', lon: 110.2, lat: 34.5, size: '中型', output: '年产量20吨'},
+                {name: '宝鸡铜矿', type: '铜矿', lon: 107.2, lat: 34.4, size: '中型', output: '年产量10万吨'}
+            ],
+            '内蒙古': [
+                {name: '鄂尔多斯煤矿', type: '煤矿', lon: 109.8, lat: 39.6, size: '特大型', output: '年产量3000万吨'},
+                {name: '包头铁矿', type: '铁矿', lon: 109.8, lat: 40.6, size: '大型', output: '年产量1500万吨'},
+                {name: '白云鄂博稀土矿', type: '稀土矿', lon: 109.9, lat: 41.8, size: '特大型', output: '全国储量80%'},
+                {name: '呼伦贝尔煤矿', type: '煤矿', lon: 119.8, lat: 49.2, size: '大型', output: '年产量2000万吨'}
+            ],
+            '河南': [
+                {name: '平顶山煤矿', type: '煤矿', lon: 113.3, lat: 33.7, size: '大型', output: '年产量1500万吨'},
+                {name: '洛阳铝土矿', type: '铝土矿', lon: 112.5, lat: 34.7, size: '中型', output: '年产量300万吨'}
+            ],
+            '辽宁': [
+                {name: '鞍山铁矿', type: '铁矿', lon: 122.9, lat: 41.1, size: '特大型', output: '年产量2000万吨'},
+                {name: '抚顺煤矿', type: '煤矿', lon: 123.9, lat: 41.9, size: '大型', output: '年产量1200万吨'}
+            ]
+        };
+
+        // Chart.js 图表实例
+        var mineChart = null;
+        
+        // 显示统计图表
+        function showChart(type, title) {
+            const chartModal = document.getElementById('chartModal');
+            const chartTitle = document.getElementById('chartTitle');
+            const chartContent = document.querySelector('.chart-content');
+            const ctx = document.getElementById('mineChart').getContext('2d');
+            const modalOverlay = document.getElementById('modalOverlay');
+            
+            // 销毁现有图表
+            if (mineChart) {
+                mineChart.destroy();
+            }
+            
+            // 清空图表容器内容
+            chartContent.innerHTML = '<div class="chart-container"><canvas id="mineChart"></canvas></div>';
+            
+            // 重新获取canvas上下文
+            const newCtx = document.getElementById('mineChart').getContext('2d');
+            
+            // 设置图表标题
+            chartTitle.textContent = title;
+            
+            // 根据类型显示不同图表
+            switch(type) {
+                case 'riverByProvince':
+                    showRiverChartByProvince(newCtx);
+                    break;
+                case 'riverByBasin':
+                    showRiverChartByBasin(newCtx);
+                    break;
+                case 'protectedArea':
+                    showProtectedAreaChart(newCtx);
+                    break;
+                case 'mineByProvince':
+                    showMineByProvinceChart(newCtx);
+                    break;
+                case 'mineByBasin':
+                    showMineByBasinChart(newCtx);
+                    break;
+            }
+            
+            // 显示图表模态框和遮罩层
+            chartModal.classList.add('show');
+            modalOverlay.classList.add('show');
+            
+            // 关闭下拉菜单
+            document.getElementById('dropdownMenu').classList.remove('show');
+        }
+        
+        // 显示按省份的河流图表
+        function showRiverChartByProvince(ctx) {
+            // 显示图表
+            mineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: riverDataByProvince.labels,
+                    datasets: [{
+                        label: '受影响程度 (%)',
+                        data: riverDataByProvince.data,
+                        backgroundColor: riverDataByProvince.colors,
+                        borderColor: '#1890ff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '按省份统计的受影响河流分布',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '受影响程度 (%)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                stepSize: 2
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 45,
+                                minRotation: 45,
+                                callback: function(value, index, values) {
+                                    return riverDataByProvince.labels[index];
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            left: 10,
+                            right: 10,
+                            top: 20,
+                            bottom: 120
+                        }
+                    }
+                }
+            });
+            
+            // 添加统计说明
+            const chartContent = document.querySelector('.chart-content');
+            const infoContainer = document.createElement('div');
+            infoContainer.className = 'stat-info-container';
+            
+            // 计算统计数据
+            const maxValue = Math.max(...riverDataByProvince.data);
+            const minValue = Math.min(...riverDataByProvince.data);
+            const maxProvince = riverDataByProvince.labels[riverDataByProvince.data.indexOf(maxValue)];
+            const minProvince = riverDataByProvince.labels[riverDataByProvince.data.indexOf(minValue)];
+            const total = riverDataByProvince.data.reduce((a, b) => a + b, 0);
+            const average = (total / riverDataByProvince.data.length).toFixed(2);
+            
+            infoContainer.innerHTML = `
+                <div style="margin-bottom: 8px;"><strong>📊 统计摘要：</strong></div>
+                <div style="margin-bottom: 5px;">• 受影响最严重：<strong>${maxProvince}</strong> (${maxValue}%)</div>
+                <div style="margin-bottom: 5px;">• 受影响最轻：<strong>${minProvince}</strong> (${minValue}%)</div>
+                <div style="margin-bottom: 5px;">• 平均受影响程度：<strong>${average}%</strong></div>
+                <div style="margin-top: 10px; font-size: 13px; color: #999;">
+                    <em>注：此图展示26个省份的河流受矿区影响程度百分比。</em>
+                </div>
+            `;
+            
+            chartContent.appendChild(infoContainer);
+        }
+        
+        // 显示按流域的河流图表 - 修正：使用流域数据
+        function showRiverChartByBasin(ctx) {
+            // 先显示图表
+            mineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: riverDataByBasin.labels,
+                    datasets: [{
+                        label: '百分比 (%)',
+                        data: riverDataByBasin.data,
+                        backgroundColor: riverDataByBasin.colors,
+                        borderColor: '#1890ff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '按流域统计的受影响河流分布',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '百分比 (%)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 添加统计说明
+            const chartContent = document.querySelector('.chart-content');
+            const infoContainer = document.createElement('div');
+            infoContainer.className = 'stat-info-container';
+            
+            // 计算统计数据
+            const maxValue = Math.max(...riverDataByBasin.data);
+            const minValue = Math.min(...riverDataByBasin.data);
+            const maxBasin = riverDataByBasin.labels[riverDataByBasin.data.indexOf(maxValue)];
+            const minBasin = riverDataByBasin.labels[riverDataByBasin.data.indexOf(minValue)];
+            
+            infoContainer.innerHTML = `
+                <div style="margin-bottom: 8px;"><strong>📊 统计摘要：</strong></div>
+                <div style="margin-bottom: 5px;">• 受影响最严重：<strong>${maxBasin}</strong> (${maxValue}%)</div>
+                <div style="margin-bottom: 5px;">• 受影响最轻：<strong>${minBasin}</strong> (${minValue}%)</div>
+                <div style="margin-top: 10px; font-size: 13px; color: #999;">
+                    <em>注：此图展示各流域水系受矿区影响程度百分比。</em>
+                </div>
+            `;
+            
+            chartContent.appendChild(infoContainer);
+        }
+        
+        // 显示保护区图表
+        function showProtectedAreaChart(ctx) {
+            // 先显示图表
+            mineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: protectedAreaData.labels,
+                    datasets: [{
+                        label: '受影响程度 (%)',
+                        data: protectedAreaData.data,
+                        backgroundColor: protectedAreaData.colors,
+                        borderColor: '#52c41a',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '受影响保护区分布统计',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '受影响程度 (%)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 45,
+                                minRotation: 45,
+                                callback: function(value, index, values) {
+                                    return protectedAreaData.labels[index];
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            left: 10,
+                            right: 10,
+                            top: 20,
+                            bottom: 120
+                        }
+                    }
+                }
+            });
+            
+            // 添加统计说明
+            const chartContent = document.querySelector('.chart-content');
+            const infoContainer = document.createElement('div');
+            infoContainer.className = 'stat-info-container';
+            
+            // 计算统计数据
+            const maxValue = Math.max(...protectedAreaData.data);
+            const minValue = Math.min(...protectedAreaData.data);
+            const maxProvince = protectedAreaData.labels[protectedAreaData.data.indexOf(maxValue)];
+            const minProvince = protectedAreaData.labels[protectedAreaData.data.indexOf(minValue)];
+            const total = protectedAreaData.data.reduce((a, b) => a + b, 0);
+            const average = (total / protectedAreaData.data.length).toFixed(2);
+            
+            infoContainer.innerHTML = `
+                <div style="margin-bottom: 8px;"><strong>📊 统计摘要：</strong></div>
+                <div style="margin-bottom: 5px;">• 受影响最严重：<strong>${maxProvince}</strong> (${maxValue}%)</div>
+                <div style="margin-bottom: 5px;">• 受影响最轻：<strong>${minProvince}</strong> (${minValue}%)</div>
+                <div style="margin-bottom: 5px;">• 平均受影响程度：<strong>${average}%</strong></div>
+                <div style="margin-top: 10px; font-size: 13px; color: #999;">
+                    <em>注：此图展示26个省份的保护区受矿区影响程度百分比。</em>
+                </div>
+            `;
+            
+            chartContent.appendChild(infoContainer);
+        }
+        
+        // 显示矿点按省统计图表 - 使用26个省份数据
+        function showMineByProvinceChart(ctx) {
+            // 先销毁现有图表
+            if (mineChart) {
+                mineChart.destroy();
+            }
+            
+            // 创建新的图表
+            mineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: mineDataByProvince.labels,
+                    datasets: [{
+                        label: '矿点数量',
+                        data: mineDataByProvince.data,
+                        backgroundColor: mineDataByProvince.colors,
+                        borderColor: '#1890ff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '矿点按省分布统计',
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}个矿点`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '矿点数量（个）',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                stepSize: 100
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 45,
+                                minRotation: 45,
+                                callback: function(value, index, values) {
+                                    return mineDataByProvince.labels[index];
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            left: 10,
+                            right: 10,
+                            top: 20,
+                            bottom: 120
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+            
+            // 添加统计说明
+            const chartContent = document.querySelector('.chart-content');
+            const infoContainer = document.createElement('div');
+            infoContainer.className = 'stat-info-container';
+            
+            // 计算统计数据
+            const maxValue = Math.max(...mineDataByProvince.data);
+            const minValue = Math.min(...mineDataByProvince.data);
+            const maxProvince = mineDataByProvince.labels[mineDataByProvince.data.indexOf(maxValue)];
+            const minProvince = mineDataByProvince.labels[mineDataByProvince.data.indexOf(minValue)];
+            const total = mineDataByProvince.data.reduce((a, b) => a + b, 0);
+            const average = Math.round(total / mineDataByProvince.data.length);
+            
+            infoContainer.innerHTML = `
+                <div style="margin-bottom: 8px;"><strong>📊 统计摘要：</strong></div>
+                <div style="margin-bottom: 5px;">• 矿点总数：<strong>${total}</strong> 个</div>
+                <div style="margin-bottom: 5px;">• 矿点最多：<strong>${maxProvince}</strong> (${maxValue}个)</div>
+                <div style="margin-bottom: 5px;">• 矿点最少：<strong>${minProvince}</strong> (${minValue}个)</div>
+                <div style="margin-bottom: 5px;">• 平均矿点数：<strong>${average}</strong> 个/省份</div>
+                <div style="margin-top: 10px; font-size: 13px; color: #999;">
+                    <em>注：图中显示了26个省份的矿点分布情况，所有省份名称均已完整显示。</em>
+                </div>
+            `;
+            
+            chartContent.appendChild(infoContainer);
+        }
+        
+        // 显示矿点按流域统计图表
+        function showMineByBasinChart(ctx) {
+            mineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: mineDataByBasin.labels,
+                    datasets: [{
+                        label: '百分比 (%)',
+                        data: mineDataByBasin.data,
+                        backgroundColor: mineDataByBasin.colors,
+                        borderColor: '#52c41a',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '矿点按流域分布统计',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '百分比 (%)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                stepSize: 5
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 添加统计说明
+            const chartContent = document.querySelector('.chart-content');
+            const infoContainer = document.createElement('div');
+            infoContainer.className = 'stat-info-container';
+            infoContainer.innerHTML = `
+                <div style="margin-bottom: 8px;"><strong>📊 统计摘要：</strong></div>
+                <div style="margin-bottom: 5px;">1. 长江流域矿点分布最多，占比28.68%</div>
+                <div style="margin-bottom: 5px;">2. 海河流域、松辽河流域、黄河流域矿点分布也较多</div>
+                <div style="margin-bottom: 5px;">3. 东南诸河流域矿点分布最少，仅占0.32%</div>
+                <div style="margin-top: 10px; font-size: 13px; color: #999;">
+                    <em>注：此图展示各流域矿点分布百分比。</em>
+                </div>
+            `;
+            chartContent.appendChild(infoContainer);
+        }
+
+        // 在地图上显示矿点 - 已修改为使用EPSG:4326
+        function showMinesOnMap(mines, regionName) {
+            // 清除之前的矿点
+            mineVectorSource.clear();
+            
+            // 添加新的矿点 - 注意：现在直接使用经纬度，无需转换
+            mines.forEach(mine => {
+                var feature = new ol.Feature({
+                    geometry: new ol.geom.Point([mine.lon, mine.lat]), // 直接使用经纬度
+                    name: mine.name,
+                    type: mine.type,
+                    size: mine.size,
+                    output: mine.output,
+                    region: mine.region
+                });
+                
+                mineVectorSource.addFeature(feature);
+            });
+            
+            // 如果有点，则缩放到矿点区域
+            if (mines.length > 0) {
+                const extent = mineVectorSource.getExtent();
+                map.getView().fit(extent, {
+                    padding: [100, 100, 100, 100],
+                    maxZoom: 7,
+                    duration: 1000
+                });
+                
+                // 显示搜索结果
+                showSearchResults(mines, regionName);
+            } else {
+                showSearchResults([], regionName);
+            }
+        }
+
+        // 动画配置常量
+        const ANIMATION_CONFIG = {
+            FLY_DURATION: 800,    // 地图飞行动画持续时间(ms)
+            FLASH_DELAY: 850      // 高亮显示延迟时间(ms)
+        };
+
+        // 显示搜索结果
+        function showSearchResults(mines, regionName) {
+            const resultsModal = document.getElementById('resultsModal');
+            const resultsTitle = document.getElementById('resultsTitle');
+            const resultsList = document.getElementById('resultsList');
+            const resultsCount = document.getElementById('resultsCount');
+            const modalOverlay = document.getElementById('modalOverlay');
+
+            // 清空之前的结果
+            resultsList.innerHTML = '';
+
+            if (mines.length === 0) {
+                resultsTitle.textContent = `未找到"${regionName}"相关矿点`;
+                resultsCount.textContent = '0个';
+                resultsList.innerHTML = '<div class="no-results">请尝试搜索其他地区，如：山西、北京、河北、山东、陕西等</div>';
+            } else {
+                resultsTitle.textContent = `"${regionName}"地区矿点`;
+                resultsCount.textContent = `${mines.length}个`;
+
+                // 在结果列表中显示
+                mines.forEach(mine => {
+                    const resultItem = document.createElement('div');
+                    // 修复: 使用正确的 CSS 类名
+                    resultItem.className = 'result-item';
+                    // 安全: 提供默认值防止 undefined
+                    resultItem.dataset.mineData = JSON.stringify({
+                        name: mine.name || '',
+                        lon: mine.lon || 0,
+                        lat: mine.lat || 0
+                    });
+                    resultItem.innerHTML = `
+                        <div class="mine-name">${mine.name || '未知矿点'}</div>
+                        <div class="mine-details">
+                            <span class="mine-type">${mine.type || '未知类型'}</span>
+                            <span class="mine-size">${mine.size || '-'}</span>
+                        </div>
+                        <div class="mine-output">${mine.output || '-'}</div>
+                    `;
+
+                    resultsList.appendChild(resultItem);
+                });
+            }
+
+            // 显示结果模态框和遮罩层
+            resultsModal.classList.add('show');
+            modalOverlay.classList.add('show');
+        }
+
+        // 处理结果项点击事件 - 使用事件委托
+        document.addEventListener('DOMContentLoaded', function() {
+            const resultsList = document.getElementById('resultsList');
+            const resultsModal = document.getElementById('resultsModal');
+            const modalOverlay = document.getElementById('modalOverlay');
+
+            resultsList.addEventListener('click', function(e) {
+                const resultItem = e.target.closest('.result-item');
+                if (!resultItem) return;
+
+                try {
+                    const mineData = JSON.parse(resultItem.dataset.mineData);
+                    if (!mineData || !mineData.lon || !mineData.lat) return;
+
+                    // 动画定位到矿点 - 直接使用经纬度
+                    map.getView().animate({
+                        center: [mineData.lon, mineData.lat], // 直接使用经纬度
+                        zoom: 10,
+                        duration: ANIMATION_CONFIG.FLY_DURATION
+                    });
+
+                    // 高亮显示该矿点
+                    setTimeout(() => {
+                        const feature = findFeatureByName(mineData.name);
+                        if (feature) {
+                            flashFeature(feature);
+                        }
+                    }, ANIMATION_CONFIG.FLASH_DELAY);
+
+                    // 关闭搜索结果模态框
+                    resultsModal.classList.remove('show');
+                    modalOverlay.classList.remove('show');
+                } catch (error) {
+                    console.error('Failed to process result item click:', error);
+                }
+            });
+        });
+
+        // 通过名称查找要素
+        function findFeatureByName(name) {
+            const features = mineVectorSource.getFeatures();
+            return features.find(feature => feature.get('name') === name);
+        }
+
+        // 闪烁显示要素（高亮效果）
+        function flashFeature(feature) {
+            const originalStyle = mineVectorLayer.getStyle()(feature);
+            const highlightStyle = new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 12,
+                    fill: new ol.style.Fill({color: '#ff4d4f'}),
+                    stroke: new ol.style.Stroke({
+                        color: '#ffffff',
+                        width: 4
+                    })
+                })
+            });
+            
+            // 设置高亮样式
+            feature.setStyle(highlightStyle);
+            
+            // 3秒后恢复原始样式
+            setTimeout(() => {
+                feature.setStyle(undefined); // 恢复图层默认样式
+            }, 3000);
+        }
+
+        // 搜索矿点
+        function searchMines(region) {
+            // 查找匹配的地区
+            const matchedRegions = Object.keys(regionMines).filter(key => 
+                key.includes(region) || region.includes(key)
+            );
+            
+            if (matchedRegions.length === 0) {
+                showMinesOnMap([], region);
+                return;
+            }
+            
+            // 获取所有匹配地区的矿点
+            let allMines = [];
+            matchedRegions.forEach(regionKey => {
+                regionMines[regionKey].forEach(mine => {
+                    allMines.push({
+                        ...mine,
+                        region: regionKey
+                    });
+                });
+            });
+            
+            // 在地图上显示矿点
+            showMinesOnMap(allMines, region);
+        }
+
+        // 图层控制功能
+        function initLayerControls() {
+            const layerControlPanel = document.getElementById('layerControl');
+            const toggleBaseMap = document.getElementById('toggleBaseMap');
+            const toggleFloodLayer = document.getElementById('toggleFloodLayer');
+            const togglePbFlowLayer = document.getElementById('togglePbFlowLayer');
+            const toggleRiverLayer = document.getElementById('toggleRiverLayer');
+            const toggleProtectedAreaLayer = document.getElementById('toggleProtectedAreaLayer');
+            const toggleMineLayer = document.getElementById('toggleMineLayer');
+            
+            // 透明度滑块
+            const floodOpacity = document.getElementById('floodOpacity');
+            const pbFlowOpacity = document.getElementById('pbFlowOpacity');
+            const riverOpacity = document.getElementById('riverOpacity');
+            const protectedAreaOpacity = document.getElementById('protectedAreaOpacity');
+            
+            // 底图显示/隐藏
+            toggleBaseMap.addEventListener('change', function() {
+                map.getLayers().getArray()[0].setVisible(this.checked);
+            });
+            
+            // 洪泛区图层显示/隐藏
+            toggleFloodLayer.addEventListener('change', function() {
+                floodLayer.setVisible(this.checked);
+            });
+            
+            // Pb_flow图层显示/隐藏
+            togglePbFlowLayer.addEventListener('change', function() {
+                pbFlowLayer.setVisible(this.checked);
+            });
+            
+            // 河流图层显示/隐藏
+            toggleRiverLayer.addEventListener('change', function() {
+                riverLayer.setVisible(this.checked);
+            });
+            
+            // 保护区图层显示/隐藏
+            toggleProtectedAreaLayer.addEventListener('change', function() {
+                protectedAreaLayer.setVisible(this.checked);
+            });
+            
+            // 矿点图层显示/隐藏
+            toggleMineLayer.addEventListener('change', function() {
+                mineVectorLayer.setVisible(this.checked);
+            });
+            
+            // 洪泛区图层透明度控制
+            floodOpacity.addEventListener('input', function() {
+                const opacityValue = this.value / 100;
+                floodLayer.setOpacity(opacityValue);
+            });
+            
+            // Pb_flow图层透明度控制
+            pbFlowOpacity.addEventListener('input', function() {
+                const opacityValue = this.value / 100;
+                pbFlowLayer.setOpacity(opacityValue);
+            });
+            
+            // 河流图层透明度控制
+            riverOpacity.addEventListener('input', function() {
+                const opacityValue = this.value / 100;
+                riverLayer.setOpacity(opacityValue);
+            });
+            
+            // 保护区图层透明度控制
+            protectedAreaOpacity.addEventListener('input', function() {
+                const opacityValue = this.value / 100;
+                protectedAreaLayer.setOpacity(opacityValue);
+            });
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化图层控制
+            initLayerControls();
+            
+            // 汉堡菜单按钮点击事件
+            document.getElementById('hamburgerBtn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                const dropdownMenu = document.getElementById('dropdownMenu');
+                dropdownMenu.classList.toggle('show');
+            });
+            
+            // 点击菜单外部关闭下拉菜单
+            document.addEventListener('click', function(e) {
+                const dropdownMenu = document.getElementById('dropdownMenu');
+                const hamburgerBtn = document.getElementById('hamburgerBtn');
+                
+                if (!dropdownMenu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+                    dropdownMenu.classList.remove('show');
+                    // 隐藏所有子菜单
+                    document.querySelectorAll('.submenu').forEach(submenu => {
+                        submenu.style.display = 'none';
+                    });
+                }
+            });
+            
+            // 菜单项点击事件 - 受影响河流
+            document.getElementById('riverMenu').addEventListener('click', function() {
+                const riverSubmenu = document.getElementById('riverSubmenu');
+                const mineStatsSubmenu = document.getElementById('mineStatsSubmenu');
+                
+                // 切换河流子菜单显示
+                if (riverSubmenu.style.display === 'none' || riverSubmenu.style.display === '') {
+                    riverSubmenu.style.display = 'block';
+                    mineStatsSubmenu.style.display = 'none';
+                } else {
+                    riverSubmenu.style.display = 'none';
+                }
+            });
+            
+            // 菜单项点击事件 - 矿点统计图
+            document.getElementById('mineStatsMenu').addEventListener('click', function() {
+                const mineStatsSubmenu = document.getElementById('mineStatsSubmenu');
+                const riverSubmenu = document.getElementById('riverSubmenu');
+                
+                // 切换矿点统计图子菜单显示
+                if (mineStatsSubmenu.style.display === 'none' || mineStatsSubmenu.style.display === '') {
+                    mineStatsSubmenu.style.display = 'block';
+                    riverSubmenu.style.display = 'none';
+                } else {
+                    mineStatsSubmenu.style.display = 'none';
+                }
+            });
+            
+            // 图层控制菜单点击事件
+            document.getElementById('layerControlMenu').addEventListener('click', function() {
+                const layerControlPanel = document.getElementById('layerControl');
+                layerControlPanel.style.display = layerControlPanel.style.display === 'none' ? 'block' : 'none';
+                // 关闭下拉菜单
+                document.getElementById('dropdownMenu').classList.remove('show');
+            });
+            
+            // 受影响河流子菜单点击事件
+            document.getElementById('riverByProvince').addEventListener('click', function() {
+                showChart('riverByProvince', '受影响河流 - 按省份统计');
+            });
+            
+            document.getElementById('riverByBasin').addEventListener('click', function() {
+                showChart('riverByBasin', '受影响河流 - 按流域统计');
+            });
+            
+            // 受影响保护区点击事件
+            document.getElementById('protectedArea').addEventListener('click', function() {
+                showChart('protectedArea', '受影响保护区统计');
+            });
+            
+            // 矿点统计图子菜单点击事件
+            document.getElementById('mineByProvince').addEventListener('click', function() {
+                showChart('mineByProvince', '矿点按省分布统计');
+            });
+            
+            document.getElementById('mineByBasin').addEventListener('click', function() {
+                showChart('mineByBasin', '矿点按流域分布统计');
+            });
+            
+            // 搜索框回车事件
+            document.getElementById('regionSearch').addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    const region = this.value.trim();
+                    
+                    if (region) {
+                        searchMines(region);
+                    } else {
+                        alert('请输入要搜索的地区名称');
+                        this.focus();
+                    }
+                }
+            });
+            
+            // 关闭图表按钮点击事件
+            document.getElementById('closeChart').addEventListener('click', function() {
+                document.getElementById('chartModal').classList.remove('show');
+                document.getElementById('modalOverlay').classList.remove('show');
+            });
+            
+            // 点击遮罩层关闭所有模态框
+            document.getElementById('modalOverlay').addEventListener('click', function() {
+                document.getElementById('chartModal').classList.remove('show');
+                document.getElementById('resultsModal').classList.remove('show');
+                document.getElementById('layerControl').style.display = 'none';
+                this.classList.remove('show');
+            });
+            
+            // 显示搜索提示
+            const searchInput = document.getElementById('regionSearch');
+            searchInput.addEventListener('focus', function() {
+                this.placeholder = '可搜索：山西、北京、河北、山东、陕西、内蒙古、河南、辽宁';
+            });
+            
+            searchInput.addEventListener('blur', function() {
+                this.placeholder = '输入省份或地区名称，如：山西、北京';
+            });
+            
+            // 确保地图正确渲染
+            setTimeout(() => {
+                map.updateSize();
+                // 确保地图初始显示WMS图层范围
+                map.getView().fit(wmsExtent, {
+                    padding: [50, 50, 50, 50],
+                    duration: 500
+                });
+            }, 100);
+            
+            // 测试WMS图层加载情况
+            console.log('WMS图层信息:');
+            console.log('1. 洪泛区图层:', floodLayer);
+            console.log('2. 受影响水系图层:', pbFlowLayer);
+            console.log('3. 河流图层:', riverLayer);
+            console.log('4. 保护区图层:', protectedAreaLayer);
+            console.log('地图坐标系:', map.getView().getProjection().getCode());
+        });
+    </script>
+</body>
+</html>

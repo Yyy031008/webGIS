@@ -682,7 +682,7 @@
                     </div>
                 </div>
                 <div class="submenu" id="riverSubmenu" style="display: none;">
-                    <div class="submenu-item" id="riverByProvince">按省统计的柱状图</div>
+                    <!-- 删除：按省统计的柱状图 -->
                     <div class="submenu-item" id="riverByBasin">按流域统计的柱状图</div>
                 </div>
                 
@@ -851,13 +851,13 @@
     </div>
 
     <script>
-        // 从URL中提取WMS图层的bbox范围
-        const wmsExtent = [58.01458333333335, 1.4354166666666544, 145.2562499999986, 55.74791666666581];
+        // 修改：只展示中国部分，定义中国区域的范围
+        const chinaExtent = [73.0, 18.0, 135.0, 53.0];
         
         // 计算中心点和初始缩放级别
-        const wmsCenter = [
-            (wmsExtent[0] + wmsExtent[2]) / 2,
-            (wmsExtent[1] + wmsExtent[3]) / 2
+        const chinaCenter = [
+            (chinaExtent[0] + chinaExtent[2]) / 2,
+            (chinaExtent[1] + chinaExtent[3]) / 2
         ];
         
         // 初始化地图 - 使用EPSG:4326坐标系以匹配WMS图层
@@ -870,23 +870,23 @@
                         attributions: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     }),
                     visible: true,
-                    extent: wmsExtent
+                    extent: chinaExtent
                 })
             ],
             view: new ol.View({
                 projection: 'EPSG:4326',
-                center: wmsCenter,
+                center: chinaCenter,
                 zoom: 4,
-                extent: wmsExtent,
+                extent: chinaExtent,
                 constrainOnlyCenter: true,
                 constrainResolution: true,
                 minZoom: 3,
                 maxZoom: 12,
-                constrainExtent: wmsExtent
+                constrainExtent: chinaExtent
             })
         });
 
-        // 创建四个WMS图层
+        // 创建四个WMS图层 - 修改：使用中国区域范围
         var floodLayer = new ol.layer.Image({
             source: new ol.source.ImageWMS({
                 url: 'http://192.168.221.22:8080/geoserver/nation/wms',
@@ -903,7 +903,7 @@
             }),
             opacity: 0.7,
             visible: true,
-            extent: [73.71751721186332, 18.34975319917463, 135.09567000000015, 53.563624000000104]
+            extent: chinaExtent
         });
         
         var pbFlowLayer = new ol.layer.Image({
@@ -922,14 +922,14 @@
             }),
             opacity: 0.7,
             visible: true,
-            extent: [74.98595182458097, 21.711597914083523, 131.9155235049398, 53.065817113285505]
+            extent: chinaExtent
         });
         
         var riverLayer = new ol.layer.Image({
             source: new ol.source.ImageWMS({
                 url: 'http://192.168.221.22:8080/geoserver/nation/wms',
                 params: {
-                    'LAYERS': 'nation:River_=4',
+                    'LAYERS': 'nation:China_River',
                     'TILED': true,
                     'VERSION': '1.1.0',
                     'FORMAT': 'image/png',
@@ -941,7 +941,7 @@
             }),
             opacity: 0.7,
             visible: true,
-            extent: [58.01458333333335, 1.4354166666666544, 145.2562499999986, 55.74791666666581]
+            extent: chinaExtent
         });
         
         var protectedAreaLayer = new ol.layer.Image({
@@ -960,7 +960,7 @@
             }),
             opacity: 0.7,
             visible: true,
-            extent: [74.452698, 18.167413, 134.777008, 53.19989]
+            extent: chinaExtent
         });
         
         // 将WMS图层添加到地图
@@ -1025,7 +1025,7 @@
                     default: color = '#eb2f96';
                 }
                 
-                // 修改：如果矿点名为空，则不显示文本
+                //如果矿点名为空，则不显示文本
                 var featureName = feature.get('name');
                 var textStyle = null;
                 
@@ -1062,19 +1062,29 @@
         
         map.addLayer(mineVectorLayer);
 
-        // 统一的省份列表（26个省份，与保护区一致）
-        const provinceList = ['安徽', '北京', '福建', '甘肃', '广东', '广西', '贵州', '河北', '河南', '黑龙江', '湖北', '湖南', '吉林', '江苏', '江西', '辽宁','内蒙古', '山东', '山西', '陕西', '四川', '天津', '西藏', '新疆', '云南','重庆'];
+        // 统一的省份列表
+        const provinceList = ['安徽', '北京', '福建', '甘肃', '广东', '广西', 
+                              '贵州', '海南','河北', '河南', '黑龙江', '湖北', 
+                              '湖南', '吉林', '江苏', '江西', '辽宁','内蒙古', 
+                              '青海','山东', '山西', '陕西', '四川','西藏', 
+                              '新疆',  '天津', '云南','浙江','重庆','台湾',
+                              '宁夏'];
 
         // 矿点数据-按省统计
         const mineDataByProvince = {
             labels: provinceList,
-            data: [450, 180, 320, 150, 650, 220, 280, 510, 380, 390, 260, 720, 200, 580, 240, 470, 420, 490, 620, 530, 800, 100, 80, 550, 300, 180],
+            data: [ 92, 9 , 21, 97, 40,118,
+                    68, 7 , 950,278, 23,158, 
+                    385, 70, 7 ,290,620,383,
+                    17,168,283,148,165,17,
+                    98,193,6,7],
             colors: [
                 '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', 
                 '#13c2c2', '#fadb14', '#ff4d4f', '#a0d911', '#2f54eb',
                 '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14',
                 '#ff4d4f', '#a0d911', '#2f54eb', '#1890ff', '#52c41a',
-                '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f'
+                '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', 
+                '#ff4d4f', '#A418DE', '#1162ED'
             ],
             description: '全国各省矿点统计'
         };
@@ -1091,24 +1101,10 @@
             description: '全国各流域矿点统计'
         };
 
-        // 水系数据 - 按省份
-        const riverDataByProvince = {
-            labels: provinceList,
-            // 各省份受影响河流的百分比
-            data: [10.02, 0.68, 1.85, 1.28, 7.01, 3.05, 5.72, 6.20, 14.08, 0.11, 1.27, 4.64, 1.37, 0.00, 3.06, 5.77, 1.64, 5.80, 19.28, 14.02, 0.54, 5.94, 0.10, 0.06, 2.13, 0.07],
-            colors: [
-                '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f',
-                '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14',
-                '#ff4d4f', '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2',
-                '#fadb14', '#ff4d4f'
-            ],
-            description: '各省份受影响河流统计'
-        };
-
-        // 水系数据 - 按流域
+        // 水系数据 - 按流域 (保留按流域统计)
         const riverDataByBasin = {
             labels: ['长江', '松辽河', '海河', '黄河', '内陆河', '珠江', '淮河', '西南', '东南'],
-            data: [27.66, 16.46, 14.86, 13.88, 8.93, 8.57, 5.05, 3.70, 0.89],
+            data: [24.34, 21.29, 14.32, 13.08, 8.93, 8.58, 4.92, 3.65, 0.89],
             colors: [
                 '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f',
                 '#a0d911'
@@ -1118,7 +1114,11 @@
         // 保护区数据
         const protectedAreaData = {
             labels: provinceList,
-            data: [10.02, 0.68, 1.85, 1.28, 7.01, 3.05, 5.72, 6.20, 14.08, 0.11, 1.27, 4.64, 1.37, 0.00, 3.06, 5.77, 1.64, 5.80, 19.28, 14.02, 0.54, 5.94, 0.10, 0.06, 2.13, 0.07],
+            data: [5.31, 0.02, 0.25, 13.27, 0.66, 0.91, 
+                   0.27, 2.78, 11.29, 1.26, 0.35, 2.03, 
+                   4.76, 0.00, 0.63, 2.67, 28.51, 0.77, 
+                   2.65, 13.58, 1.71, 0.26, 2.63, 1.68, 
+                   1.74, 0.01],
             colors: [
                 '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14', '#ff4d4f',
                 '#a0d911', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#722ed1', '#13c2c2', '#fadb14',
@@ -1209,7 +1209,7 @@
             }
         }
 
-        // 省份边界范围（简化版，用于快速判断矿点属于哪个省份）
+        // 省份边界范围
         const provinceBounds = {
             '云南': { minLon: 97.5, maxLon: 106.0, minLat: 21.0, maxLat: 29.0 },
             '四川': { minLon: 97.0, maxLon: 108.0, minLat: 26.0, maxLat: 34.0 },
@@ -1282,9 +1282,6 @@
             
             // 根据类型显示不同图表
             switch(type) {
-                case 'riverByProvince':
-                    showRiverChartByProvince(newCtx);
-                    break;
                 case 'riverByBasin':
                     showRiverChartByBasin(newCtx);
                     break;
@@ -1305,106 +1302,6 @@
             
             // 关闭下拉菜单
             document.getElementById('dropdownMenu').classList.remove('show');
-        }
-        
-        // 显示按省份的河流图表
-        function showRiverChartByProvince(ctx) {
-            // 显示图表
-            mineChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: riverDataByProvince.labels,
-                    datasets: [{
-                        label: '受影响程度 (%)',
-                        data: riverDataByProvince.data,
-                        backgroundColor: riverDataByProvince.colors,
-                        borderColor: '#1890ff',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        title: {
-                            display: true,
-                            text: '按省份统计的受影响河流分布',
-                            font: {
-                                size: 16,
-                                weight: 'bold'
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: '受影响程度 (%)',
-                                font: {
-                                    size: 14,
-                                    weight: 'bold'
-                                }
-                            },
-                            ticks: {
-                                stepSize: 2
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                autoSkip: false,
-                                font: {
-                                    size: 10
-                                },
-                                maxRotation: 45,
-                                minRotation: 45,
-                                callback: function(value, index, values) {
-                                    return riverDataByProvince.labels[index];
-                                }
-                            },
-                            grid: {
-                                display: false
-                            }
-                        }
-                    },
-                    layout: {
-                        padding: {
-                            left: 10,
-                            right: 10,
-                            top: 20,
-                            bottom: 120
-                        }
-                    }
-                }
-            });
-            
-            // 添加统计说明
-            const chartContent = document.querySelector('.chart-content');
-            const infoContainer = document.createElement('div');
-            infoContainer.className = 'stat-info-container';
-            
-            // 计算统计数据
-            const maxValue = Math.max(...riverDataByProvince.data);
-            const minValue = Math.min(...riverDataByProvince.data);
-            const maxProvince = riverDataByProvince.labels[riverDataByProvince.data.indexOf(maxValue)];
-            const minProvince = riverDataByProvince.labels[riverDataByProvince.data.indexOf(minValue)];
-            const total = riverDataByProvince.data.reduce((a, b) => a + b, 0);
-            const average = (total / riverDataByProvince.data.length).toFixed(2);
-            
-            infoContainer.innerHTML = `
-                <div style="margin-bottom: 8px;"><strong>📊 统计摘要：</strong></div>
-                <div style="margin-bottom: 5px;">• 受影响最严重：<strong>${maxProvince}</strong> (${maxValue}%)</div>
-                <div style="margin-bottom: 5px;">• 受影响最轻：<strong>${minProvince}</strong> (${minValue}%)</div>
-                <div style="margin-bottom: 5px;">• 平均受影响程度：<strong>${average}%</strong></div>
-                <div style="margin-top: 10px; font-size: 13px; color: #999;">
-                    <em>注：此图展示26个省份的河流受矿区影响程度百分比。</em>
-                </div>
-            `;
-            
-            chartContent.appendChild(infoContainer);
         }
         
         // 显示按流域的河流图表
@@ -2141,11 +2038,7 @@
                 e.stopPropagation();
             });
             
-            // 受影响河流子菜单点击事件
-            document.getElementById('riverByProvince').addEventListener('click', function() {
-                showChart('riverByProvince', '受影响河流 - 按省份统计');
-            });
-            
+            // 受影响河流子菜单点击事件（只保留按流域统计）
             document.getElementById('riverByBasin').addEventListener('click', function() {
                 showChart('riverByBasin', '受影响河流 - 按流域统计');
             });
@@ -2205,8 +2098,8 @@
             // 确保地图正确渲染
             setTimeout(() => {
                 map.updateSize();
-                // 确保地图初始显示WMS图层范围
-                map.getView().fit(wmsExtent, {
+                // 确保地图初始显示中国范围
+                map.getView().fit(chinaExtent, {
                     padding: [50, 50, 50, 50],
                     duration: 500
                 });

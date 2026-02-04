@@ -24,7 +24,7 @@
             overflow: hidden;
         }
         
-        /* 顶部导航栏样式 */
+        /* 顶部导航栏样式 - 修改布局 */
         .top-nav {
             display: flex;
             justify-content: space-between;
@@ -36,6 +36,32 @@
             top: 0;
             z-index: 1000;
             flex-shrink: 0;
+        }
+        
+        /* 修改：标题区域居中显示 */
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .header-title h1 {
+            color: #e53935;
+            font-size: 28px;
+            margin-bottom: 5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            line-height: 1.2;
+        }
+        
+        .header-title .page-description {
+            color: #1976d2;
+            font-size: 16px;
+            font-weight: 500;
         }
         
         /* 左上角汉堡菜单样式 */
@@ -173,25 +199,9 @@
             color: #aaa;
         }
         
-        /* 页面标题样式 */
+        /* 移除原来的页面标题样式 */
         .page-header {
-            text-align: center;
-            padding: 20px 0;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            flex-shrink: 0;
-        }
-        
-        h1 {
-            color: #e53935;
-            font-size: 48px;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        
-        .page-description {
-            color: #1976d2;
-            font-size: 18px;
-            font-weight: 500;
+            display: none;
         }
         
         /* 地图容器样式 - 修复高度问题 */
@@ -211,8 +221,9 @@
             height: 100% !important;
         }
         
-        /* 图层控制面板 */
+        /* 图层控制面板 - 添加点击外部关闭功能 */
         .layer-control {
+            display: none;
             position: absolute;
             top: 20px;
             right: 20px;
@@ -557,20 +568,34 @@
             .top-nav {
                 padding: 15px;
                 flex-direction: column;
-                align-items: flex-start;
+                align-items: stretch;
+            }
+            
+            .header-title {
+                position: static;
+                transform: none;
+                order: 1;
+                margin-bottom: 15px;
+            }
+            
+            .hamburger-menu {
+                order: 2;
+                align-self: flex-start;
+                margin-bottom: 15px;
             }
             
             .search-container {
+                order: 3;
                 width: 100%;
-                margin-top: 15px;
+                margin-top: 0;
             }
             
             .search-box {
                 width: 100%;
             }
             
-            h1 {
-                font-size: 36px;
+            .header-title h1 {
+                font-size: 24px;
             }
             
             .chart-modal, .results-modal {
@@ -611,12 +636,12 @@
         }
         
         @media (max-width: 480px) {
-            h1 {
-                font-size: 28px;
+            .header-title h1 {
+                font-size: 20px;
             }
             
-            .page-description {
-                font-size: 16px;
+            .header-title .page-description {
+                font-size: 14px;
             }
             
             .chart-title {
@@ -642,7 +667,7 @@
     <!-- 模态框遮罩层 -->
     <div class="modal-overlay" id="modalOverlay"></div>
     
-    <!-- 顶部导航栏 -->
+    <!-- 顶部导航栏 - 修改布局 -->
     <div class="top-nav">
         <!-- 左上角汉堡菜单 -->
         <div class="hamburger-menu">
@@ -694,6 +719,12 @@
             </div>
         </div>
         
+        <!-- 中间标题区域 - 居中显示 -->
+        <div class="header-title">
+            <h1>矿点分布地图系统</h1>
+            <p class="page-description">全国矿点分布可视化与统计分析平台</p>
+        </div>
+        
         <!-- 右上角搜索框 -->
         <div class="search-container">
             <div class="search-box">
@@ -704,17 +735,11 @@
         </div>
     </div>
     
-    <!-- 页面标题区域 -->
-    <div class="page-header">
-        <h1>矿点分布地图系统</h1>
-        <p class="page-description">全国矿点分布可视化与统计分析平台</p>
-    </div>
-    
     <!-- 地图容器 -->
     <div id="map"></div>
     
     <!-- 图层控制面板 -->
-    <div class="layer-control" id="layerControl" style="display: none;">
+    <div class="layer-control" id="layerControl">
         <h3>图层控制</h3>
         
         <div class="layer-group">
@@ -1000,6 +1025,26 @@
                     default: color = '#eb2f96';
                 }
                 
+                // 修改：如果矿点名为空，则不显示文本
+                var featureName = feature.get('name');
+                var textStyle = null;
+                
+                // 只有矿点名不为空且不是"点"时，才显示文本
+                if (featureName && featureName !== '点') {
+                    // 限制文本长度，最多显示4个字符
+                    var displayText = featureName.length > 4 ? featureName.substring(0, 4) + '...' : featureName;
+                    textStyle = new ol.style.Text({
+                        text: displayText,
+                        font: 'bold 12px Arial',
+                        fill: new ol.style.Fill({color: '#333'}),
+                        stroke: new ol.style.Stroke({
+                            color: '#ffffff',
+                            width: 3
+                        }),
+                        offsetY: -18
+                    });
+                }
+                
                 return new ol.style.Style({
                     image: new ol.style.Circle({
                         radius: 8,
@@ -1009,16 +1054,7 @@
                             width: 2
                         })
                     }),
-                    text: new ol.style.Text({
-                        text: feature.get('name').substring(0, 4),
-                        font: 'bold 12px Arial',
-                        fill: new ol.style.Fill({color: '#333'}),
-                        stroke: new ol.style.Stroke({
-                            color: '#ffffff',
-                            width: 3
-                        }),
-                        offsetY: -18
-                    })
+                    text: textStyle
                 });
             },
             visible: true
@@ -1093,7 +1129,7 @@
 
         // ========== 从JSON文件加载矿点数据 ==========
         // JSON文件路径
-        const jsonUrl = 'data/4718';
+        const jsonUrl = 'data/4718.json';
         let allMines = [];
         let minesByProvince = {};
 
@@ -1149,7 +1185,7 @@
                     },
                     {
                         "FID": 2,
-                        "矿点名": "四川矿点1",
+                        "矿点名": "",
                         "经度": 104.758525,
                         "纬度": 30.760872,
                         "矿种": "煤矿",
@@ -1742,7 +1778,7 @@
             chartContent.appendChild(infoContainer);
         }
 
-        // 在地图上显示矿点
+        // 在地图上显示矿点 - 修改：矿点名为空的直接不显示名称
         function showMinesOnMap(mines, regionName) {
             // 清除之前的矿点
             mineVectorSource.clear();
@@ -1753,9 +1789,8 @@
                 const mineralTypes = mine.矿种 ? mine.矿种.split('、') : [];
                 const mainType = mineralTypes.length > 0 ? mineralTypes[0] : '未知';
                 
-                // 生成矿点名称
-                const mineName = mine.矿点名 && mine.矿点名.trim() !== '' ? mine.矿点名 : 
-                                (mainType !== '未知' ? mainType + '矿点' : '未知矿点');
+                // 生成矿点名称 - 修改：如果矿点名为空，则设为空字符串
+                const mineName = mine.矿点名 && mine.矿点名.trim() !== '' ? mine.矿点名 : '';
                 
                 var feature = new ol.Feature({
                     geometry: new ol.geom.Point([mine.经度, mine.纬度]),
@@ -1791,7 +1826,7 @@
             FLASH_DELAY: 850
         };
 
-        // 显示搜索结果
+        // 显示搜索结果 - 修改：矿点名为空的显示矿种作为名称
         function showSearchResults(mines, regionName) {
             const resultsModal = document.getElementById('resultsModal');
             const resultsTitle = document.getElementById('resultsTitle');
@@ -1816,9 +1851,12 @@
                     const mineralTypes = mine.矿种 ? mine.矿种.split('、') : [];
                     const mainType = mineralTypes.length > 0 ? mineralTypes[0] : '未知';
                     
-                    // 生成矿点名称
-                    const mineName = mine.矿点名 && mine.矿点名.trim() !== '' ? mine.矿点名 : 
-                                    (mainType !== '未知' ? mainType + '矿点' : '未知矿点');
+                    // 生成矿点名称 - 修改：如果矿点名为空，则用矿种作为名称
+                    let mineName = mine.矿点名 && mine.矿点名.trim() !== '' ? mine.矿点名 : '';
+                    if (!mineName) {
+                        // 如果没有矿点名，使用矿种作为名称
+                        mineName = mainType !== '未知' ? mainType : '未知矿点';
+                    }
                     
                     const resultItem = document.createElement('div');
                     resultItem.className = 'result-item';
@@ -2074,12 +2112,33 @@
                 }
             });
             
-            // 图层控制菜单点击事件
-            document.getElementById('layerControlMenu').addEventListener('click', function() {
+            // 图层控制菜单点击事件 - 修复：确保图层控制面板可以正常打开
+            document.getElementById('layerControlMenu').addEventListener('click', function(e) {
+                e.stopPropagation(); // 阻止事件冒泡
                 const layerControlPanel = document.getElementById('layerControl');
-                layerControlPanel.style.display = layerControlPanel.style.display === 'none' ? 'block' : 'none';
+                const isVisible = layerControlPanel.style.display === 'block';
+                layerControlPanel.style.display = isVisible ? 'none' : 'block';
+                
                 // 关闭下拉菜单
                 document.getElementById('dropdownMenu').classList.remove('show');
+            });
+            
+            // 点击空白处隐藏图层控制面板
+            document.addEventListener('click', function(e) {
+                const layerControlPanel = document.getElementById('layerControl');
+                const layerControlMenu = document.getElementById('layerControlMenu');
+                
+                // 如果点击的不是图层控制面板且不是图层控制菜单，则隐藏面板
+                if (layerControlPanel.style.display === 'block' && 
+                    !layerControlPanel.contains(e.target) && 
+                    !layerControlMenu.contains(e.target)) {
+                    layerControlPanel.style.display = 'none';
+                }
+            });
+            
+            // 防止点击图层控制面板内部时隐藏
+            document.getElementById('layerControl').addEventListener('click', function(e) {
+                e.stopPropagation();
             });
             
             // 受影响河流子菜单点击事件
@@ -2165,5 +2224,4 @@
         });
     </script>
 </body>
-
 </html>
